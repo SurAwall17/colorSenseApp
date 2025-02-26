@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "927412940351",
+    "project_id": "db-color-sense",
+    "storage_bucket": "db-color-sense.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:927412940351:android:564b73de85f376a068128a",
+        "android_client_info": {
+          "package_name": "com.example.colorsense"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2_NREykZYBSf6-YxvX4MXLMkgvrMYchk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
