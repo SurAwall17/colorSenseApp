@@ -479,49 +479,16 @@ class _KMeansScreenState extends State<KMeansScreen> {
                   );
                 }).toList(),
                 const SizedBox(height: 20),
-                SizedBox(
-                  height: 300,
-                  child: _buildPieChart(),
-                ),
+                // SizedBox(
+                //   height: 300,
+                //   child: _buildPieChart(),
+                // ),
                 const SizedBox(height: 20),
                 _buildColorCombinations(),
               ],
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPieChart() {
-    final List<PieChartSectionData> pieChartData =
-        _colorPercentages!.entries.map((entry) {
-      final color =
-          Color(int.parse(entry.key.substring(1, 7), radix: 16) + 0xFF000000);
-      return PieChartSectionData(
-        color: color,
-        value: entry.value * 100,
-        // title: '${(entry.value * 100).toStringAsFixed(1)}%',
-        title: '',
-        radius: 50,
-        borderSide: BorderSide(
-          color: Colors.black, // Warna garis pinggir
-          width: 2, // Ketebalan garis pinggir
-        ),
-        titleStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      );
-    }).toList();
-
-    return PieChart(
-      PieChartData(
-        sections: pieChartData,
-        borderData: FlBorderData(show: false),
-        centerSpaceRadius: 40,
-        sectionsSpace: 2,
       ),
     );
   }
