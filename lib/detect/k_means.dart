@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -22,9 +23,228 @@ class _KMeansScreenState extends State<KMeansScreen> {
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
 
-  @override
-  void initState() {
-    super.initState();
+  // Add color combination helper methods
+  Color _hexToColor(String hex) {
+    return Color(int.parse(hex.substring(1, 7), radix: 16) + 0xFF000000);
+  }
+
+  String _colorToHex(Color color) {
+    return '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
+  }
+
+  // Convert RGB to HSL
+  List<double> _rgbToHsl(int r, int g, int b) {
+    double r1 = r / 255;
+    double g1 = g / 255;
+    double b1 = b / 255;
+
+    double max = [r1, g1, b1].reduce(math.max);
+    double min = [r1, g1, b1].reduce(math.min);
+
+    double h = 0, s = 0, l = (max + min) / 2;
+
+    if (max != min) {
+      double d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+      if (max == r1) {
+        h = (g1 - b1) / d + (g1 < b1 ? 6 : 0);
+      } else if (max == g1) {
+        h = (b1 - r1) / d + 2;
+      } else if (max == b1) {
+        h = (r1 - g1) / d + 4;
+      }
+      h /= 6;
+    }
+
+    return [h * 360, s * 100, l * 100];
+  }
+
+  // Convert HSL to RGB
+  Color _hslToColor(double h, double s, double l) {
+    h = h / 360;
+    s = s / 100;
+    l = l / 100;
+
+    double r, g, b;
+
+    if (s == 0) {
+      r = g = b = l;
+    } else {
+      double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      double p = 2 * l - q;
+
+      double hueToRgb(double p, double q, double t) {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      }
+
+      r = hueToRgb(p, q, h + 1 / 3);
+      g = hueToRgb(p, q, h);
+      b = hueToRgb(p, q, h - 1 / 3);
+    }
+
+    return Color.fromRGBO(
+        (r * 255).round(), (g * 255).round(), (b * 255).round(), 1);
+  }
+
+  // Get complementary color
+  Color _getComplementaryColor(Color color) {
+    var hsl = _rgbToHsl(color.red, color.green, color.blue);
+    double newHue = (hsl[0] + 180) % 360;
+    return _hslToColor(newHue, hsl[1], hsl[2]);
+  }
+
+  // Get analogous colors
+  List<Color> _getAnalogousColors(Color color) {
+    var hsl = _rgbToHsl(color.red, color.green, color.blue);
+    double hue = hsl[0];
+
+    return [
+      _hslToColor((hue - 30 + 360) % 360, hsl[1], hsl[2]),
+      color,
+      _hslToColor((hue + 30) % 360, hsl[1], hsl[2]),
+    ];
+  }
+
+  // Get triadic colors
+  List<Color> _getTriadicColors(Color color) {
+    var hsl = _rgbToHsl(color.red, color.green, color.blue);
+    double hue = hsl[0];
+
+    return [
+      color,
+      _hslToColor((hue + 120) % 360, hsl[1], hsl[2]),
+      _hslToColor((hue + 240) % 360, hsl[1], hsl[2]),
+    ];
+  }
+
+  Widget _buildColorCombinations() {
+    if (_colorPercentages == null || _colorPercentages!.isEmpty)
+      return Container();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Kombinasi Warna yang Cocok:",
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 20),
+
+        // For each detected color, show its combinations
+        ..._colorPercentages!.entries.map((entry) {
+          Color baseColor = _hexToColor(entry.key);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8.0),
+                margin: const EdgeInsets.symmetric(vertical: 10.0),
+                decoration: BoxDecoration(
+                  color: baseColor,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  'Kombinasi untuk ${entry.key} (${(entry.value * 100).toStringAsFixed(1)}%):',
+                  style: TextStyle(
+                    color: baseColor.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              // Complementary
+              _buildCombinationSection(
+                  "Komplementer",
+                  [baseColor, _getComplementaryColor(baseColor)],
+                  "Kombinasi warna yang berhadapan pada roda warna"),
+
+              // Analogous
+              _buildCombinationSection(
+                  "Analogous",
+                  _getAnalogousColors(baseColor),
+                  "Kombinasi warna yang berdekatan pada roda warna"),
+
+              // Triadic
+              _buildCombinationSection("Triadic", _getTriadicColors(baseColor),
+                  "Kombinasi tiga warna yang berjarak sama pada roda warna"),
+
+              const Divider(thickness: 2),
+              const SizedBox(height: 10),
+            ],
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildCombinationSection(
+      String title, List<Color> colors, String description) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: colors.map((color) {
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => _copyToClipboard(_colorToHex(color)),
+                    child: Container(
+                      height: 50,
+                      margin: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _colorToHex(color),
+                          style: TextStyle(
+                            color: color.computeLuminance() > 0.5
+                                ? Colors.black
+                                : Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -137,7 +357,7 @@ class _KMeansScreenState extends State<KMeansScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // Image picker buttons
+              // Keep existing widgets...
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -202,9 +422,7 @@ class _KMeansScreenState extends State<KMeansScreen> {
                 ),
                 const SizedBox(height: 10),
                 ..._colorPercentages!.entries.map((entry) {
-                  final color = Color(
-                      int.parse(entry.key.substring(1, 7), radix: 16) +
-                          0xFF000000);
+                  final color = _hexToColor(entry.key);
                   return Column(
                     children: [
                       GestureDetector(
@@ -265,6 +483,8 @@ class _KMeansScreenState extends State<KMeansScreen> {
                   height: 300,
                   child: _buildPieChart(),
                 ),
+                const SizedBox(height: 20),
+                _buildColorCombinations(),
               ],
             ],
           ),
@@ -273,7 +493,41 @@ class _KMeansScreenState extends State<KMeansScreen> {
     );
   }
 
-  // Widget _buildBarChart() {
+  Widget _buildPieChart() {
+    final List<PieChartSectionData> pieChartData =
+        _colorPercentages!.entries.map((entry) {
+      final color =
+          Color(int.parse(entry.key.substring(1, 7), radix: 16) + 0xFF000000);
+      return PieChartSectionData(
+        color: color,
+        value: entry.value * 100,
+        // title: '${(entry.value * 100).toStringAsFixed(1)}%',
+        title: '',
+        radius: 50,
+        borderSide: BorderSide(
+          color: Colors.black, // Warna garis pinggir
+          width: 2, // Ketebalan garis pinggir
+        ),
+        titleStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      );
+    }).toList();
+
+    return PieChart(
+      PieChartData(
+        sections: pieChartData,
+        borderData: FlBorderData(show: false),
+        centerSpaceRadius: 40,
+        sectionsSpace: 2,
+      ),
+    );
+  }
+}
+ 
+  //Widget _buildBarChart() {
   //   return BarChart(
   //     BarChartData(
   //       barGroups: _colorPercentages!.entries.map((entry) {
@@ -348,38 +602,6 @@ class _KMeansScreenState extends State<KMeansScreen> {
   //     ),
   //   );
   // }
-  Widget _buildPieChart() {
-    final List<PieChartSectionData> pieChartData =
-        _colorPercentages!.entries.map((entry) {
-      final color =
-          Color(int.parse(entry.key.substring(1, 7), radix: 16) + 0xFF000000);
-      return PieChartSectionData(
-        color: color,
-        value: entry.value * 100,
-        // title: '${(entry.value * 100).toStringAsFixed(1)}%',
-        title: '',
-        radius: 50,
-        borderSide: BorderSide(
-          color: Colors.black, // Warna garis pinggir
-          width: 2, // Ketebalan garis pinggir
-        ),
-        titleStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      );
-    }).toList();
-
-    return PieChart(
-      PieChartData(
-        sections: pieChartData,
-        borderData: FlBorderData(show: false),
-        centerSpaceRadius: 40,
-        sectionsSpace: 2,
-      ),
-    );
-  }
 //metode deteksi menggunakan palette_generator
 // import 'dart:convert';
 // import 'dart:io';
@@ -405,6 +627,8 @@ class _KMeansScreenState extends State<KMeansScreen> {
 //   Map<String, dynamic>? _colorPercentages;
 //   bool _isLoading = false;
 //   final ImagePicker _picker = ImagePicker();
+//   final int _maxColors =
+//       5; // You can adjust this number for more or fewer colors
 
 //   String _colorToHex(Color color) {
 //     return '#${color.value.toRadixString(16).substring(2)}';
@@ -417,11 +641,8 @@ class _KMeansScreenState extends State<KMeansScreen> {
 //         setState(() {
 //           _image = File(pickedFile.path);
 //         });
-//         if (source == ImageSource.camera) {
-//           await _analyzePalette();
-//         } else {
-//           await _analyzeColors();
-//         }
+//         // Use palette generator for both camera and gallery
+//         await _analyzePalette();
 //       }
 //     } catch (e) {
 //       print('Error picking image: $e');
@@ -440,7 +661,7 @@ class _KMeansScreenState extends State<KMeansScreen> {
 //       final PaletteGenerator paletteGenerator =
 //           await PaletteGenerator.fromImageProvider(
 //         imageProvider,
-//         maximumColorCount: 5, // Adjust this number for more or fewer colors
+//         maximumColorCount: _maxColors,
 //       );
 
 //       Map<String, dynamic> colorData = {};
@@ -480,46 +701,6 @@ class _KMeansScreenState extends State<KMeansScreen> {
 //         _isLoading = false;
 //       });
 //       print('Error analyzing palette: $e');
-//     }
-//   }
-
-//   // Keep the existing _analyzeColors() method for gallery images
-//   Future<void> _analyzeColors() async {
-//     if (_image == null) return;
-
-//     setState(() {
-//       _isLoading = true;
-//     });
-
-//     final request = http.MultipartRequest(
-//       'POST',
-//       Uri.parse('http://192.168.1.5:5000/analyze'),
-//     );
-//     request.files.add(await http.MultipartFile.fromPath('image', _image!.path));
-
-//     try {
-//       final response = await request.send();
-//       final responseString = await http.Response.fromStream(response);
-
-//       if (response.statusCode == 200) {
-//         final colorData = json.decode(responseString.body);
-//         await _saveToFirebase(_image!, colorData);
-
-//         setState(() {
-//           _colorPercentages = colorData;
-//           _isLoading = false;
-//         });
-//       } else {
-//         setState(() {
-//           _isLoading = false;
-//         });
-//         print('Error: ${response.statusCode}');
-//       }
-//     } catch (e) {
-//       setState(() {
-//         _isLoading = false;
-//       });
-//       print('Error analyzing colors: $e');
 //     }
 //   }
 
@@ -709,4 +890,4 @@ class _KMeansScreenState extends State<KMeansScreen> {
 //     );
 //   }
 // }
-}
+
