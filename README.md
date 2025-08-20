@@ -1,7 +1,7 @@
 # 🎨 ColorSense
 
 **ColorSense** adalah aplikasi mobile berbasis **Flutter** yang membantu pengguna mendeteksi warna secara **realtime** melalui kamera, menganalisis warna pada gambar, serta memberikan **rekomendasi warna** untuk desain grafis.  
-Aplikasi ini dirancang khusus untuk mendukung pengguna umum maupun penderita buta warna agar lebih mudah mengenali dan memilih kombinasi warna.
+Aplikasi ini dirancang khusus untuk mendukung pengguna umum dan desainer grafis agar lebih mudah dalam memilih warna.
 
 ---
 
